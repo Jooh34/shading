@@ -15,7 +15,12 @@ uniform bool useMirrorBRDF;         // true if mirror brdf should be used (defau
 uniform sampler2D diffuseTextureSampler;
 
 // TODO CS248 Part 3: Normal Mapping
+
+uniform sampler2D normalTextureSampler;
+
 // TODO CS248 Part 4: Environment Mapping
+
+uniform sampler2D environmentTextureSampler;
 
 
 //
@@ -56,9 +61,16 @@ out vec4 fragColor;
 // L -- direction to light
 // N -- surface normal at point being shaded
 //
-vec3 Diffuse_BRDF(vec3 L, vec3 N, vec3 diffuseColor) {
-    return diffuseColor * max(dot(N, L), 0.);
+vec3 Diffuse_BRDF(vec3 L, vec3 N, vec3 diffuse_color) {
+    return diffuse_color * max(dot(N, L), 0.);
 }
+
+vec3 Specular_BRDF(vec3 L, vec3 V, vec3 N, vec3 specular_color, float specular_exponent) {
+    vec3 R = normalize(2 * max(dot(L, N), 0.) * N - L);
+    // vec3 R = normalize(2 * dot(L, N) * N - L);
+    return specular_color * pow(max(dot(R, V), 0.), specular_exponent);
+}
+
 
 //
 // Phong_BRDF --
@@ -73,9 +85,15 @@ vec3 Phong_BRDF(vec3 L, vec3 V, vec3 N, vec3 diffuse_color, vec3 specular_color,
     // TODO CS248 Part 2: Phong Reflectance
     // Implement diffuse and specular terms of the Phong
     // reflectance model here.
+    float k_a = 0.1;
+    float k_d = 0.7;
+    float k_s = 0.7;
 
-    return diffuse_color;
-
+    vec3 c_a = k_a * diffuse_color;
+    vec3 c_d = k_d * Diffuse_BRDF(L, N, diffuse_color);
+    vec3 c_s = k_s * Specular_BRDF(L, V, N, specular_color, specular_exponent);
+    
+    return c_a + c_d + c_s;
 }
 
 //
@@ -101,8 +119,17 @@ vec3 SampleEnvironmentMap(vec3 D)
     //
     // (3) How do you convert theta and phi to normalized texture
     //     coordinates in the domain [0,1]^2?
+    
+    float theta = acos(D.y);
 
-    return vec3(.25, .25, .25);    
+    float phi = acos(D.z/sqrt(pow(D.z,2)+pow(D.x,2)));
+    if (D.x < 0) phi = -phi;
+
+    // theta : 0 < theta < pi
+    // phi : 0 < phi < 2*pi
+    vec2 texture_uv = vec2(phi/(2*PI),theta/PI);
+
+    return texture(environmentTextureSampler, texture_uv).rgb;    
 }
 
 //
@@ -140,7 +167,12 @@ void main(void)
        // In other words:   tangent_space_normal = texture_value * 2.0 - 1.0;
 
        // replace this line with your implementation
-       N = normalize(normal);
+
+        vec3 normal_rgb = texture(normalTextureSampler, texcoord).rgb;
+        vec3 tangent_space_normal = normal_rgb * 2.0 - 1.0;
+
+        N = tan2world * tangent_space_normal;
+        N = normalize(N);
 
     } else {
        N = normalize(normal);
@@ -159,7 +191,7 @@ void main(void)
         // compute perfect mirror reflection direction here.
         // You'll also need to implement environment map sampling in SampleEnvironmentMap()
         //
-        vec3 R = normalize(vec3(1.0));
+        vec3 R = normalize(2 * max(dot(V, N), 0.) * N - V);
         //
 
         // sample environment map

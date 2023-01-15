@@ -45,4 +45,12 @@ void main(void)
     texcoord = vtx_texcoord;
     dir2camera = camera_position - position;
     gl_Position = mvp * vec4(vtx_position, 1);
+
+    if (useNormalMapping) {
+        vec3 B = normalize(cross(normal, vtx_tangent));
+        vec3 T = normalize(vtx_tangent);
+
+        // mat3 constructor is column-major
+        tan2world = mat3(T, B, normal);
+    }
 }
