@@ -10,12 +10,15 @@ uniform mat4 mvp;                       // ModelViewProjection Matrix
 
 uniform bool useNormalMapping;         // true if normal mapping should be used
 
+// Part 5.2;
+uniform mat4 worldToLightNDC[MAX_NUM_LIGHTS];
+
 // per vertex input attributes 
 in vec3 vtx_position;            // object space position
 in vec3 vtx_tangent;
 in vec3 vtx_normal;              // object space normal
 in vec2 vtx_texcoord;
-in vec3 vtx_diffuse_color; 
+in vec3 vtx_diffuse_color;
 
 // per vertex outputs 
 out vec3 position;                  // world space position
@@ -24,6 +27,9 @@ out vec2 texcoord;
 out vec3 dir2camera;                // world space vector from surface point to camera
 out vec3 normal;
 out mat3 tan2world;                 // tangent space rotation matrix multiplied by obj2WorldNorm
+
+// Part 5.2
+out vec4 position_shadowlights[MAX_NUM_LIGHTS]; // screen position on lightspace
 
 void main(void)
 {
@@ -61,6 +67,12 @@ void main(void)
     texcoord = vtx_texcoord;
     dir2camera = camera_position - position;
     gl_Position = mvp * vec4(vtx_position, 1);
+
+    // Part 5.2 : transform the triangle vertex positions into light space
+    for (int j=0; j<num_spot_lights; j++)
+    {
+        position_shadowlights[j] =  worldToLightNDC[j] * obj2world * vec4(vtx_position, 1);
+    }
 
     if (useNormalMapping) {
         vec3 B = normalize(cross(normal, vtx_tangent));

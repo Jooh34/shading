@@ -392,6 +392,11 @@ namespace CS248
 				// In this way, the shader can compute the texture coordinate to sample from the
 				// Shadow Map given any point on the object.
 				// For examples of passing arrays to the shader, look below for "directional_light_vectors[]" etc.
+				for (int j = 0; j < numShadowedLights; j++)
+				{
+					string varname = "worldToLightNDC[" + std::to_string(j) + "]";
+					shader_->setMatrixParameter(varname, scene_->getWorldToShadowLight(j));
+				}
 
 				checkGLError("after bind uniforms, about to bind textures");
 
@@ -417,7 +422,8 @@ namespace CS248
 				// You want to pass the array of shadow textures computed during shadow pass into the shader program.
 				// See Scene::visualizeShadowMap for an example of passing texture arrays.
 				// See shadow_viz.frag for an example of using texture arrays in the shader.
-
+				shader_->setTextureArraySampler("shadowlightMapSamplerArray", scene_->getShadowTextureArrayId());
+				
 				// bind light parameters //////////////////////////////////
 
 				shader_->setScalarParameter("num_directional_lights", (int)scene_->getNumDirectionalLights());

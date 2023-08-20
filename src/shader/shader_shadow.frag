@@ -22,6 +22,9 @@ uniform sampler2D normalTextureSampler;
 
 uniform sampler2D environmentTextureSampler;
 
+// CS248 Part 5-2: shadowlightMapSamplerArray
+uniform sampler2DArray shadowlightMapSamplerArray;
+
 //
 // lighting environment definition. Scenes may contain directional
 // and point light sources, as well as an environment map
@@ -56,6 +59,9 @@ in vec2 texcoord;     // surface texcoord (uv)
 in vec3 dir2camera;   // vector from surface point to camera
 in mat3 tan2world;    // tangent space to world space transform
 in vec3 vertex_diffuse_color; // surface color
+
+// Part 5.2
+in vec4 position_shadowlights[MAX_NUM_LIGHTS]; // vertex position on lightspace
 
 out vec4 fragColor;
 
@@ -136,6 +142,15 @@ vec3 SampleEnvironmentMap(vec3 D)
     vec2 texture_uv = vec2(phi/(2*PI),theta/PI);
 
     return texture(environmentTextureSampler, texture_uv).rgb;  
+}
+
+
+float linearize_depth(float depth)
+{
+    float near_plane = 10.0;
+    float far_plane = 400.0;
+    float z = depth * 2.0 - 1.0; // Back to NDC 
+    return (2.0 * near_plane * far_plane) / (far_plane + near_plane - z * (far_plane - near_plane));
 }
 
 //
@@ -279,12 +294,32 @@ void main(void)
         intensity *= (1.0 - ratio);
         
         // Render Shadows for all spot lights
-        // TODO CS248 Part 5.2: Shadow Mapping: comute shadowing for spotlight i here 
+        // TODO CS248 Part 5.2: Shadow Mapping: comute shadowing for spotlight i here
+        
+        vec4 position_shadowlight = position_shadowlights[i];
+        vec3 proj_coords = position_shadowlight.xyz / position_shadowlight.w;
+        proj_coords = proj_coords * 0.5+0.5;
+        vec2 shadow_uv = proj_coords.xy;
+        float surface_depth = proj_coords.z; 
+        float eps = 0.0001;
 
-	    vec3 L = normalize(-spot_light_directions[i]);
-		vec3 brdf_color = Phong_BRDF(L, V, N, diffuseColor, specularColor, specularExponent);
+        float pcf_step_size = 900;
+        float shadow = 0.f;
+        for (int j=-2; j<=2; j++) {
+            for (int k=-2; k<=2; k++) {
+                vec2 offset = vec2(j,k) / pcf_step_size;
+                // sample shadow map at shadow_uv + offset
+                // and test if the surface is in shadow according to this sample
+                float depth = texture(shadowlightMapSamplerArray, vec3(shadow_uv+offset, i)).x;  // Using the i-th layer
 
-	    Lo += intensity * brdf_color;
+                shadow += (surface_depth - depth > eps) ? (1.f / 25) : 0.f;
+            }
+        }
+
+        vec3 L = normalize(-spot_light_directions[i]);
+        vec3 brdf_color = Phong_BRDF(L, V, N, diffuseColor, specularColor, specularExponent);
+
+        Lo += (1.f-shadow) * intensity * brdf_color;
     }
 
     fragColor = vec4(Lo, 1);
